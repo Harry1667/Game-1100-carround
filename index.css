@@ -1,0 +1,18 @@
+/* 🔧 [CSS] 獨立的樣式設定，用於鎖定 iOS 螢幕與安全區域適配 */
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: fixed; /* 徹底阻斷 iOS 彈性回彈 */
+  touch-action: none; /* 禁用預設手勢 */
+  -webkit-overflow-scrolling: auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
