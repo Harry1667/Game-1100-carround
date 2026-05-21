@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { SKIN_CONFIG, SkinInfo } from '../constants';
 import { useTranslation } from '../utils/i18n';
+import { triggerHaptic } from '../utils/haptic';
 
 console.log('🚀 [Shop] 載入 ShopModal 模組');
 
@@ -43,8 +44,8 @@ export const ShopModal: React.FC<ShopModalProps> = ({
         onUnlockSkin(skin.id, skin.price);
       } else {
         console.warn(`⚠️ [Shop] 金幣餘額不足！需要: ${skin.price}, 目前只有: ${gold}`);
-        // 觸發一個輕微警告震動（這裏可以使用 triggerHaptic）
-        import('../utils/haptic').then((h) => h.triggerHaptic('warning'));
+        // 觸發一個輕微警告震動
+        triggerHaptic('warning');
       }
     }
   };
