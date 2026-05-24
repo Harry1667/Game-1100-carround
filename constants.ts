@@ -20,10 +20,10 @@ export const ISLAND_RADIUS = 16;
 export const MERGE_RADIUS = 30; 
 
 // Physics
-export const BASE_SPEED = 7; // Slightly slower for the denser grid
-export const EXIT_SPEED = BASE_SPEED; 
+export const BASE_SPEED = 4.5;
+export const EXIT_SPEED = BASE_SPEED;
 export const ORBIT_SPEED_BASE = BASE_SPEED;
-export const ORBIT_SPEED_INC = 0;
+export const ORBIT_SPEED_INC = 0.2;
 
 // Visuals - Matched to Image (Green BG, Beige Island, Gray Road)
 export const COLORS = {

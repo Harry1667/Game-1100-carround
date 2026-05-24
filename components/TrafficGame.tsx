@@ -36,7 +36,7 @@ interface CircleCollider {
 }
 
 // --- Audio Synthesizer ---
-const playSound = (type: 'START' | 'CRASH' | 'SCORE' | 'COMBO' | 'WIN' | 'LOSE', intensity = 0) => {
+const playSound = (type: 'START' | 'CRASH' | 'SCORE' | 'COMBO' | 'WIN' | 'LOSE' | 'CONTINUE', intensity = 0) => {
   const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
   if (!AudioContext) return;
   
@@ -62,58 +62,59 @@ const playSound = (type: 'START' | 'CRASH' | 'SCORE' | 'COMBO' | 'WIN' | 'LOSE',
     osc.stop(now + 0.3);
 
   } else if (type === 'CRASH') {
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(100, now);
-    osc.frequency.exponentialRampToValueAtTime(10, now + 0.5);
-    
-    const bufferSize = ctx.sampleRate * 0.5;
+    // 低沉悶響，不刺耳：triangle 波短促降調
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(140, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.3);
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.18, now + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+    osc.start(now);
+    osc.stop(now + 0.3);
+
+    // 極輕的白噪音質感，有撞擊感但不爆音
+    const bufferSize = ctx.sampleRate * 0.25;
     const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
     const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = Math.random() * 2 - 1;
-    }
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
     const noise = ctx.createBufferSource();
     noise.buffer = buffer;
     const noiseGain = ctx.createGain();
     noise.connect(noiseGain);
     noiseGain.connect(ctx.destination);
-    
-    noiseGain.gain.setValueAtTime(0.8, now);
-    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+    noiseGain.gain.setValueAtTime(0, now);
+    noiseGain.gain.linearRampToValueAtTime(0.12, now + 0.01);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
     noise.start(now);
-    
-    gain.gain.setValueAtTime(0.8, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
-    osc.start(now);
-    osc.stop(now + 0.5);
 
   } else if (type === 'COMBO') {
-    let freq = 261.63; // C4
-    let oscType: OscillatorType = 'sine';
-    
-    if (intensity === 2) freq = 329.63; // E4
-    if (intensity === 3) freq = 392.00; // G4
-    if (intensity === 4) { freq = 523.25; oscType = 'triangle'; } // C5
-    if (intensity >= 5) { freq = 523.25; oscType = 'sawtooth'; } 
+    // Soft chime: C4 → E4 → G4 → C5 → E5，純 sine 波鐘聲，不刺耳
+    const comboNotes = [261.63, 329.63, 392.00, 523.25, 659.25];
+    const freq = comboNotes[Math.min(intensity - 1, comboNotes.length - 1)];
 
-    osc.type = oscType;
+    osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, now);
-    osc.frequency.exponentialRampToValueAtTime(freq * 1.5, now + 0.1); 
-    
-    if (intensity >= 3) {
-        const osc2 = ctx.createOscillator();
-        osc2.type = 'sine';
-        osc2.frequency.setValueAtTime(freq * 1.5, now);
-        osc2.connect(gain);
-        osc2.start(now);
-        osc2.stop(now + 0.4);
-    }
 
-    gain.gain.setValueAtTime(0.4, now);
-    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
-    
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.18, now + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.55);
+
     osc.start(now);
-    osc.stop(now + 0.4);
+    osc.stop(now + 0.55);
+
+    // 泛音：加一個低一半音量的 2 倍頻，讓鐘聲更圓潤
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(freq * 2, now);
+    gain2.gain.setValueAtTime(0, now);
+    gain2.gain.linearRampToValueAtTime(0.07, now + 0.015);
+    gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.35);
+    osc2.start(now);
+    osc2.stop(now + 0.35);
 
   } else if (type === 'SCORE') {
     // New simplified score sound (ding)
@@ -142,15 +143,34 @@ const playSound = (type: 'START' | 'CRASH' | 'SCORE' | 'COMBO' | 'WIN' | 'LOSE',
     });
 
   } else if (type === 'LOSE') {
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(150, now);
-    osc.frequency.linearRampToValueAtTime(50, now + 1.0);
-    
-    gain.gain.setValueAtTime(0.5, now);
-    gain.gain.linearRampToValueAtTime(0.01, now + 1.0);
-    
+    // 溫和下滑音：triangle 波，短促降調，不嚇人
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(320, now);
+    osc.frequency.linearRampToValueAtTime(160, now + 0.6);
+
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.22, now + 0.04);
+    gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
+
     osc.start(now);
-    osc.stop(now + 1.0);
+    osc.stop(now + 0.6);
+
+  } else if (type === 'CONTINUE') {
+    // 繼續挑戰彈窗提示音：兩聲輕柔鐘，降調暗示「你還有機會」
+    const notes = [440, 330];
+    notes.forEach((freq, i) => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.type = 'sine';
+      o.frequency.setValueAtTime(freq, now + i * 0.22);
+      g.gain.setValueAtTime(0, now + i * 0.22);
+      g.gain.linearRampToValueAtTime(0.15, now + i * 0.22 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.22 + 0.45);
+      o.start(now + i * 0.22);
+      o.stop(now + i * 0.22 + 0.45);
+    });
   }
 };
 
@@ -383,10 +403,8 @@ export const TrafficGame: React.FC = () => {
   };
 
   // 根據關卡等級決定地圖類型
-  const getMapTypeForLevel = (lvl: number): 'STANDARD' | 'EIGHT_SHAPE' | 'INTERSECTION' => {
-    if (lvl === 1 || lvl === 2) return 'STANDARD';
-    if (lvl === 3 || lvl === 4) return 'EIGHT_SHAPE';
-    return 'INTERSECTION'; // Level 5+
+  const getMapTypeForLevel = (_lvl: number): 'STANDARD' | 'EIGHT_SHAPE' | 'INTERSECTION' => {
+    return 'STANDARD';
   };
 
   const mapType = getMapTypeForLevel(level);
@@ -645,10 +663,13 @@ export const TrafficGame: React.FC = () => {
       const orbitCarsCount = Math.min(Math.floor((lvl - 2) / 2) + 1, 6);
       for(let i=0; i<orbitCarsCount; i++) {
          const color = CAR_COLORS[(i + 3) % CAR_COLORS.length];
+         // 關卡 5 以上偶數障礙車改為卡車，增加佔用長度的壓迫感
+         const obstacleType = (lvl >= 5 && i % 2 === 1) ? CarType.TRUCK : CarType.SEDAN;
+         const obstacleLen = obstacleType === CarType.TRUCK ? 3 : 2;
          newCars.push({
             id: `orbit-obstacle-${i}`,
-            type: CarType.SEDAN,
-            length: 2,
+            type: obstacleType,
+            length: obstacleLen,
             color: color,
             gridX: -100,
             gridY: -100,
@@ -724,7 +745,8 @@ export const TrafficGame: React.FC = () => {
     playSound('LOSE');
     setTimeout(() => {
         setStatus('LOST_CONTINUE');
-    }, 1500); // Wait for explosion animation
+        playSound('CONTINUE');
+    }, 1500);
   };
 
   const resetCombo = () => {
@@ -898,9 +920,6 @@ export const TrafficGame: React.FC = () => {
     let allOrbiting = true;
     let parkingCount = 0;
 
-    // 檢查目前環島上是否有警車在行駛，以發動「全場警車警笛減速」
-    const isPoliceActive = carsRef.current.some(c => c.type === CarType.POLICE && c.state === CarState.ORBITING);
-
     // 匯入成功的金幣、Combo、得分輔助回調
     const handleMergeSuccess = (car: Car, bestDist: number) => {
       console.log(`✅ [Physics] 車輛成功匯入環島軌道: ${car.id}，類型: ${car.type}`);
@@ -945,15 +964,18 @@ export const TrafficGame: React.FC = () => {
       }
       lastMergeTimeRef.current = now;
       
-      // 大巴士獲得 3 分，其餘 1 分
-      const scoreGain = car.type === CarType.BUS ? 3 : 1;
+      // 大巴士 300 分，其餘 100 分；combo 每多 1 次額外 +50
+      const baseScore = car.type === CarType.BUS ? 300 : 100;
+      const comboBonus = (currentCombo - 1) * 50;
+      const scoreGain = baseScore + comboBonus;
       setScore(s => s + scoreGain);
-      
-      // 金幣收益計算：大巴士 30 金幣底，其餘 10 金幣底
+      spawnFloatingText(`+${scoreGain}`, car.x, car.y - 20, '#ffffff');
+
+      // 金幣收益：大巴士 30 底，其餘 10 底，乘以 combo
       const baseGold = car.type === CarType.BUS ? 30 : 10;
       const goldReward = baseGold * currentCombo;
       setGold(g => g + goldReward);
-      spawnFloatingText(`+🪙${goldReward}`, car.x, car.y - 40, '#facc15');
+      spawnFloatingText(`+🪙${goldReward}`, car.x, car.y - 44, '#facc15');
     };
 
     carsRef.current.forEach(car => {
@@ -1049,28 +1071,7 @@ export const TrafficGame: React.FC = () => {
 
       } else if (car.state === CarState.ORBITING) {
         let baseSpd = ORBIT_SPEED_BASE + (level * ORBIT_SPEED_INC);
-        
-        // 警車全場減速技能：非警車、非救護車的車輛速度減半
-        if (isPoliceActive && car.type !== CarType.POLICE && car.type !== CarType.AMBULANCE) {
-          baseSpd *= 0.5;
-        }
-        
-        // 救護車優先開道避讓技能 (前車加速避讓，後車減速讓行)
-        if (car.type !== CarType.AMBULANCE) {
-          const ambulance = carsRef.current.find(c => c.type === CarType.AMBULANCE && c.state === CarState.ORBITING);
-          if (ambulance) {
-            let diff = car.orbitDistance - ambulance.orbitDistance;
-            if (diff < -perimeter / 2) diff += perimeter;
-            if (diff > perimeter / 2) diff -= perimeter;
-            
-            if (diff > 0 && diff < 120) {
-              baseSpd *= 1.6; // 前車加速 1.6 倍
-            } else if (diff < 0 && diff > -80) {
-              baseSpd *= 0.4; // 後車減速 0.4 倍
-            }
-          }
-        }
-        
+
         car.speed = baseSpd;
         car.orbitDistance += car.speed * gameSpeed;
         if (car.orbitDistance > perimeter) car.orbitDistance -= perimeter;
@@ -1251,7 +1252,6 @@ export const TrafficGame: React.FC = () => {
     };
     
     // --- 繪製道路 (Roads) 與安全島 (Islands) ---
-    console.log(`🚀 [Draw] 開始繪製地圖, 類型: ${mapType}`);
     if (mapType === 'STANDARD') {
       ctx.fillStyle = COLORS.OUTER_BORDER;
       ctx.beginPath();
@@ -1560,45 +1560,74 @@ export const TrafficGame: React.FC = () => {
         ctx.fill();
       } 
       else if (car.type === CarType.POLICE) {
-        // [3] 警車 (POLICE) - 長度 2：黑白警徽塗裝 + 前後玻璃 + 紅藍爆閃警燈
+        // [3] 警車 (POLICE) - 前後明顯不同：深藍車身 + 前白條 + 黃色大燈 + 紅色尾燈 + 頂部警燈
+        // 後半段（左/-x）：深灰
+        ctx.fillStyle = '#374151';
+        ctx.beginPath();
+        ctx.roundRect(-w/2, -h/2 + 1, w/2 + 4, h - 2, 6);
+        ctx.fill();
+
+        // 前半段（右/+x）：深藍
+        ctx.fillStyle = '#1e3a5f';
+        ctx.beginPath();
+        ctx.roundRect(-w/8, -h/2 + 1, w/2 + w/8, h - 2, 4);
+        ctx.fill();
+
+        // 白色橫條（只在前半，給方向感）
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillRect(0, -h * 0.22, w/2 - 2, h * 0.44);
+
+        // 前擋風玻璃（藍色玻璃，緊貼車頭）
+        ctx.fillStyle = '#2563eb';
+        ctx.globalAlpha = 0.75;
+        ctx.beginPath();
+        ctx.roundRect(w/4, -h * 0.34, w/5, h * 0.68, 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+
+        // 後窗（小、深）
         ctx.fillStyle = '#111827';
         ctx.beginPath();
-        ctx.roundRect(-w/2, -h/2 + 1, w, h - 2, 6);
+        ctx.roundRect(-w/3, -h * 0.28, w/7, h * 0.56, 2);
         ctx.fill();
 
-        ctx.fillStyle = '#ffffff';
+        // 前大燈：明亮黃白（車頭右側）
+        ctx.fillStyle = '#fef3c7';
+        ctx.fillRect(w/2 - 3, -h * 0.32, 4, 5);
+        ctx.fillRect(w/2 - 3,  h * 0.32 - 5, 4, 5);
+        // 大燈光暈
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        const headGrad = ctx.createRadialGradient(w/2, 0, 1, w/2, 0, 12);
+        headGrad.addColorStop(0, 'rgba(254,243,199,0.9)');
+        headGrad.addColorStop(1, 'rgba(254,243,199,0)');
+        ctx.fillStyle = headGrad;
         ctx.beginPath();
-        ctx.roundRect(-w/6, -h/2 + 1, w/3, h - 2, 2);
+        ctx.arc(w/2, 0, 12, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
 
-        // 金色警徽
-        ctx.fillStyle = '#fbbf24';
-        ctx.beginPath();
-        ctx.arc(0, 0, 3, 0, Math.PI * 2);
-        ctx.fill();
+        // 後尾燈：紅色（車尾左側）
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(-w/2 - 1, -h * 0.3, 4, 5);
+        ctx.fillRect(-w/2 - 1,  h * 0.3 - 5, 4, 5);
 
-        // 警用玻璃
-        ctx.fillStyle = '#1f2937';
-        ctx.beginPath();
-        ctx.roundRect(w/6, -h * 0.35, 6, h * 0.7, 2);
-        ctx.roundRect(-w/3, -h * 0.3, 4, h * 0.6, 2);
-        ctx.fill();
-
-        // 車頂紅藍爆閃
+        // 頂部警燈條（前半位置）
         const flashTick = Math.floor(Date.now() / 150) % 2;
         ctx.fillStyle = flashTick === 0 ? '#ef4444' : '#3b82f6';
         ctx.beginPath();
-        ctx.roundRect(-4, -5, 8, 10, 2);
+        ctx.roundRect(w/8, -h/2 + 1, w/4, 3, 1);
         ctx.fill();
 
+        // 警燈光暈
         ctx.save();
-        ctx.globalAlpha = 0.25;
-        const sirenGrad = ctx.createRadialGradient(0, 0, 1, 0, 0, 20);
-        sirenGrad.addColorStop(0, flashTick === 0 ? 'rgba(239, 68, 68, 0.8)' : 'rgba(59, 130, 246, 0.8)');
-        sirenGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.globalAlpha = 0.22;
+        const sirenGrad = ctx.createRadialGradient(w/4, 0, 1, w/4, 0, 18);
+        sirenGrad.addColorStop(0, flashTick === 0 ? 'rgba(239,68,68,0.9)' : 'rgba(59,130,246,0.9)');
+        sirenGrad.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = sirenGrad;
         ctx.beginPath();
-        ctx.arc(0, 0, 20, 0, Math.PI * 2);
+        ctx.arc(w/4, 0, 18, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       } 
@@ -1833,7 +1862,7 @@ export const TrafficGame: React.FC = () => {
         if (c.life <= 0) clicksRef.current.splice(i, 1);
     });
 
-  }, [scale, debugMode]);
+  }, [scale, debugMode, mapType, activeSkinId]);
 
   useEffect(() => {
     const loop = () => {
